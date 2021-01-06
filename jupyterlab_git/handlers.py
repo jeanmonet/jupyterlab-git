@@ -75,7 +75,7 @@ class GitAllHistoryHandler(GitHandler):
 
         show_top_level = await self.git.show_top_level(current_path)
         if show_top_level["code"] != 0:
-            self.set_status(500)
+            # self.set_status(500)  # already handled in GitShowTopLevelHandler class
             self.finish(json.dumps(show_top_level))
         else:
             branch = await self.git.branch(current_path)
@@ -109,7 +109,24 @@ class GitShowTopLevelHandler(GitHandler):
         result = await self.git.show_top_level(current_path)
 
         if result["code"] != 0:
-            self.set_status(500)
+            # Error messages from git to handle as log.info instead of 500 error
+            error_message = map(
+                lambda n: n.lower(),
+                [
+                    # Avoid 500 error messages in terminal when cwd is not a git repo
+                    "fatal: not a git repository (or any of the parent directories):",
+                ]
+            )
+            lower_error = result.get("message", "").lower()
+            if any([msg in lower_error for msg in error_message]):
+                self.log.info(
+                    "[jupyterlab_git] Failed to execute 'git' command: {!s},"\
+                        " with message: {!s}".format(
+                            result["command"], result["message"].strip()
+                        )
+                )
+            else:
+                self.set_status(500)
         self.finish(json.dumps(result))
 
 
